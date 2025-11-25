@@ -1,0 +1,11 @@
+#:schema https://jj-vcs.github.io/jj/latest/config-schema.json
+
+[user]
+name = "Jake Popham"
+email = "jxp6414@gmail.com"
+
+[ui]
+conflict-marker-style = "git"
+
+[git]
+abandon_unreachable_commits = true
