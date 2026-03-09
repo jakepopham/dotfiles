@@ -34,5 +34,9 @@ safe_link $DOTFILES_DIR/fish $CONFIG_DIR/fish
 safe_link $DOTFILES_DIR/jj $CONFIG_DIR/jj
 safe_link $DOTFILES_DIR/tmux $CONFIG_DIR/tmux
 
+# Symlink individual files into existing directories
+mkdir -p ~/.claude
+safe_link $DOTFILES_DIR/claude/CLAUDE.md ~/.claude/CLAUDE.md
+
 echo ""
 echo "Setup complete! Restart your shell or run 'exec fish' to apply changes."
