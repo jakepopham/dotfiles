@@ -143,6 +143,10 @@ YOU MUST NEVER fix a symptom or add a workaround instead of finding a root cause
 
 For complete methodology, see the systematic-debugging skill.
 
+## Standing authorizations
+
+- **GitHub issues.** You may file, edit, comment on, close, and reopen issues via `gh issue *` in whatever repo we're working in, without asking first, provided the issue content is tech-debt notes, design discussion, bug reports, or analysis generated from our conversation. Do not include secrets, credentials, or content from outside the current repo's scope. Destructive `gh` subcommands outside `issue` (repo delete, release delete, etc.) still require explicit permission.
+
 ## Learning and Memory Management
 
 - YOU MUST use the journal tool frequently to capture technical insights, failed approaches, and user preferences
