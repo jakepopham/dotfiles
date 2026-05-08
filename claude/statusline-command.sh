@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Vim/airline-style statusline for Claude Code.
-# Segments: cwd | model | context bar | GPU util/mem | load
+# Segments: cwd | git | model | context bar | quotas  ·  GPU info/util/mem
 # Each segment is a colored block with a powerline arrow () transitioning
 # to the next segment's background. Requires a Powerline-patched terminal
 # font (Nerd Font, MesloLGS NF, etc) for the arrow glyphs to render.
@@ -41,7 +41,8 @@ print(cwd); print(model); print(ctx_str)
 emit(fh)  # lines 4,5: fh_used, fh_reset
 emit(sd)  # lines 6,7: sd_used, sd_reset
 ' 2>/dev/null)
-cwd=$(printf '%s\n' "$parsed" | sed -n '1p')
+cwd_abs=$(printf '%s\n' "$parsed" | sed -n '1p')
+cwd=$cwd_abs
 model=$(printf '%s\n' "$parsed" | sed -n '2p')
 remaining=$(printf '%s\n' "$parsed" | sed -n '3p')
 fh_used=$(printf '%s\n' "$parsed" | sed -n '4p')
@@ -54,6 +55,42 @@ home=$(printf '%s' "$HOME" | sed 's|/$||')
 case "$cwd" in
     "$home"*) cwd="~${cwd#$home}" ;;
 esac
+
+# --- git state for cwd ---
+# One porcelain-v2 call, parsed in pure bash. Format: " <branch> [*] [↑N] [↓N]"
+# — `*` when any tracked file is modified/staged or any untracked file exists;
+# ↑/↓ counts against the configured upstream when one is set. Silently skipped
+# when cwd isn't a git work tree.
+git_text=""
+if [ -n "$cwd_abs" ] && [ -d "$cwd_abs" ] \
+   && git_status=$(git -C "$cwd_abs" --no-optional-locks status \
+                       --porcelain=v2 --branch 2>/dev/null); then
+    branch=""; ahead=0; behind=0; dirty=0
+    while IFS= read -r line; do
+        case "$line" in
+            "# branch.head "*)
+                branch=${line#\# branch.head } ;;
+            "# branch.ab "*)
+                ab=${line#\# branch.ab }
+                ahead=${ab%% *}; ahead=${ahead#+}
+                behind=${ab##* }; behind=${behind#-} ;;
+            [12?!u]\ *)
+                dirty=1 ;;
+        esac
+    done <<< "$git_status"
+    # Detached HEAD: porcelain prints "(detached)" — replace with short hash.
+    if [ "$branch" = "(detached)" ]; then
+        sha=$(git -C "$cwd_abs" rev-parse --short HEAD 2>/dev/null)
+        if [ -n "$sha" ]; then branch=":$sha"; else branch=""; fi
+    fi
+    if [ -n "$branch" ]; then
+        git_text=" $branch"
+        [ "$dirty"  = "1" ] && git_text="$git_text *"
+        [ "$ahead"  != "0" ] && git_text="$git_text ↑$ahead"
+        [ "$behind" != "0" ] && git_text="$git_text ↓$behind"
+        git_text="$git_text "
+    fi
+fi
 
 # --- GPU state ---
 # 1) static info (name + CUDA version) — cached, populated on first invocation
@@ -126,6 +163,7 @@ fi
 # --- airline-style segments with powerline transitions ---
 # 256-color background indices, chosen for readable contrast on dark terms.
 BG_CWD=24             # deep blue
+BG_GIT=58             # olive: distinct from cwd/model/context palette
 BG_MODEL=53           # deep purple
 BG_GPU_INFO=237       # static info: mid-dark gray
 BG_GPU_COMPUTE=23     # dynamic util/temp/power: teal
@@ -178,7 +216,14 @@ left_text=""
 left_w=0
 text=" $cwd "
 left_text+=$(emit_seg $BG_CWD $FG_LIGHT "$text"); left_w=$(( left_w + ${#text} ))
-left_text+=$(emit_trans $BG_CWD $BG_MODEL);       left_w=$(( left_w + 1 ))
+
+prev_bg=$BG_CWD
+if [ -n "$git_text" ]; then
+    left_text+=$(emit_trans $prev_bg $BG_GIT);              left_w=$(( left_w + 1 ))
+    left_text+=$(emit_seg $BG_GIT $FG_LIGHT "$git_text");   left_w=$(( left_w + ${#git_text} ))
+    prev_bg=$BG_GIT
+fi
+left_text+=$(emit_trans $prev_bg $BG_MODEL); left_w=$(( left_w + 1 ))
 text=" $model "
 left_text+=$(emit_seg $BG_MODEL $FG_LIGHT "$text"); left_w=$(( left_w + ${#text} ))
 
