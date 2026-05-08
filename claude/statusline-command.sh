@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 # Vim/airline-style statusline for Claude Code.
-# Segments: cwd | git | model | context bar | quotas  ·  GPU info/util/mem
+# Three chunks separated by stretchy whitespace:
+#   left   = cwd · git
+#   middle = model · context · quotas
+#   right  = GPU info · util · memory
 # Each segment is a colored block with a powerline arrow () transitioning
-# to the next segment's background. Requires a Powerline-patched terminal
-# font (Nerd Font, MesloLGS NF, etc) for the arrow glyphs to render.
+# to the next segment's background. Each chunk's outer edges fade into the
+# default bg via and . Requires a Powerline-patched terminal font
+# (Nerd Font, MesloLGS NF, etc) for the arrow glyphs to render.
 
 input=$(cat)
 
@@ -44,6 +48,9 @@ emit(sd)  # lines 6,7: sd_used, sd_reset
 cwd_abs=$(printf '%s\n' "$parsed" | sed -n '1p')
 cwd=$cwd_abs
 model=$(printf '%s\n' "$parsed" | sed -n '2p')
+# Strip trailing annotations like " (1M context)" from display_name to save
+# width — it duplicates info the user already chose at session start.
+model=$(printf '%s' "$model" | sed -E 's/[[:space:]]*\([^)]*context\)$//')
 remaining=$(printf '%s\n' "$parsed" | sed -n '3p')
 fh_used=$(printf '%s\n' "$parsed" | sed -n '4p')
 fh_reset=$(printf '%s\n' "$parsed" | sed -n '5p')
@@ -133,30 +140,41 @@ if command -v nvidia-smi >/dev/null 2>&1; then
 fi
 
 
-# --- progress fill for context-window remaining ---
-# Rendered as a split segment (bright bg over the filled portion, dim bg over
-# the empty portion) rather than a separate bar of block glyphs. Computed below
-# once the segment text is known.
+# --- progress-fill bar text (context window + rate-limit quotas) ---
+# Each bar renders as a split segment (bright bg over the filled portion, dim
+# bg over the empty portion) — the bar's *width* is the text's cell length, so
+# we pad the label to a fixed BAR_W to give each bar a uniform, visible track.
+# Label is centered so the fill grows under it rather than chasing it across.
+BAR_W=18
+
+pad_center() {  # $1=label  → echoes label centered in BAR_W cells (no-op if too long)
+    local t=$1 len=${#1}
+    if [ "$len" -ge "$BAR_W" ]; then printf ' %s ' "$t"; return; fi
+    local total=$(( BAR_W - len ))
+    local left=$(( total / 2 ))
+    local right=$(( total - left ))
+    printf '%*s%s%*s' "$left" '' "$t" "$right" ''
+}
+
 ctx_text=""
 if [ -n "$remaining" ]; then
-    ctx_text=" ctx ${remaining}% "
+    ctx_text=$(pad_center "ctx ${remaining}%")
 fi
 
-# --- Claude rate-limit quotas: two segments, each with its own countdown ---
 fh_text=""
 if [ -n "$fh_used" ]; then
     if [ -n "$fh_reset" ]; then
-        fh_text=" ${fh_used}% · ${fh_reset} "
+        fh_text=$(pad_center "${fh_used}% · ${fh_reset}")
     else
-        fh_text=" ${fh_used}% "
+        fh_text=$(pad_center "${fh_used}%")
     fi
 fi
 sd_text=""
 if [ -n "$sd_used" ]; then
     if [ -n "$sd_reset" ]; then
-        sd_text=" ${sd_used}% · ${sd_reset} "
+        sd_text=$(pad_center "${sd_used}% · ${sd_reset}")
     else
-        sd_text=" ${sd_used}% "
+        sd_text=$(pad_center "${sd_used}%")
     fi
 fi
 
@@ -207,61 +225,68 @@ emit_lstart() { # $1=bg_right (left arrow into right-aligned segment from defaul
     printf '\033[0m\033[38;5;%sm%s' "$1" "$LARROW"
 }
 
-# Build the line: left group + stretchy spacer + right group.
-# emit_seg now expects the caller to include leading/trailing spaces in the
-# text. Visible-cell length is counted as `${#text}` (ASCII labels) plus 1
-# per powerline arrow.
+# Build the line as three chunks separated by stretchy whitespace:
+#   left   = dir/git
+#   middle = model/usage (model + context bar + quotas)
+#   right  = hardware (GPU info / compute / memory)
+# Each chunk's outer edges fade into default bg via emit_lstart / emit_end,
+# the same mechanism the right chunk has always used. Visible-cell length
+# is counted as `${#text}` (ASCII labels) plus 1 per powerline arrow.
 
+# --- left chunk: cwd + git ---
 left_text=""
 left_w=0
 text=" $cwd "
 left_text+=$(emit_seg $BG_CWD $FG_LIGHT "$text"); left_w=$(( left_w + ${#text} ))
-
-prev_bg=$BG_CWD
+left_last_bg=$BG_CWD
 if [ -n "$git_text" ]; then
-    left_text+=$(emit_trans $prev_bg $BG_GIT);              left_w=$(( left_w + 1 ))
-    left_text+=$(emit_seg $BG_GIT $FG_LIGHT "$git_text");   left_w=$(( left_w + ${#git_text} ))
-    prev_bg=$BG_GIT
+    left_text+=$(emit_trans $left_last_bg $BG_GIT);          left_w=$(( left_w + 1 ))
+    left_text+=$(emit_seg $BG_GIT $FG_LIGHT "$git_text");    left_w=$(( left_w + ${#git_text} ))
+    left_last_bg=$BG_GIT
 fi
-left_text+=$(emit_trans $prev_bg $BG_MODEL); left_w=$(( left_w + 1 ))
+left_text+=$(emit_end $left_last_bg); left_w=$(( left_w + 1 ))
+
+# --- middle chunk: model + context bar + quotas ---
+mid_text=""
+mid_w=0
+mid_text+=$(emit_lstart $BG_MODEL);                         mid_w=$(( mid_w + 1 ))
 text=" $model "
-left_text+=$(emit_seg $BG_MODEL $FG_LIGHT "$text"); left_w=$(( left_w + ${#text} ))
+mid_text+=$(emit_seg $BG_MODEL $FG_LIGHT "$text");          mid_w=$(( mid_w + ${#text} ))
+mid_last_bg=$BG_MODEL
 
 if [ -n "$remaining" ]; then
-    left_text+=$(emit_trans $BG_MODEL $BG_CTX_FULL); left_w=$(( left_w + 1 ))
+    mid_text+=$(emit_trans $mid_last_bg $BG_CTX_FULL); mid_w=$(( mid_w + 1 ))
     seg_n=${#ctx_text}
     fill_n=$(( (remaining * seg_n + 50) / 100 ))
     [ "$fill_n" -lt 0 ] && fill_n=0
     [ "$fill_n" -gt "$seg_n" ] && fill_n=$seg_n
-    left_text+=$(printf '\033[48;5;%sm\033[38;5;%sm%s' "$BG_CTX_FULL" "$FG_CTX" "${ctx_text:0:$fill_n}")
-    left_text+=$(printf '\033[48;5;%sm\033[38;5;%sm%s' "$BG_CTX_DIM"  "$FG_CTX" "${ctx_text:$fill_n}")
-    left_w=$(( left_w + seg_n ))
-    left_last_bg=$BG_CTX_DIM
-else
-    left_last_bg=$BG_MODEL
+    mid_text+=$(printf '\033[48;5;%sm\033[38;5;%sm%s' "$BG_CTX_FULL" "$FG_CTX" "${ctx_text:0:$fill_n}")
+    mid_text+=$(printf '\033[48;5;%sm\033[38;5;%sm%s' "$BG_CTX_DIM"  "$FG_CTX" "${ctx_text:$fill_n}")
+    mid_w=$(( mid_w + seg_n ))
+    mid_last_bg=$BG_CTX_DIM
 fi
 
-add_quota_seg() {  # $1=text $2=used_pct  → appends a split-bg quota segment to left_text
+add_quota_seg() {  # $1=text $2=used_pct  → appends a split-bg quota segment to mid_text
     seg_text=$1
     pct=$2
     [ -z "$seg_text" ] && return
     read -r bg_full bg_dim fg <<< "$(quota_colors "$pct")"
-    left_text+=$(emit_trans $left_last_bg $bg_full); left_w=$(( left_w + 1 ))
+    mid_text+=$(emit_trans $mid_last_bg $bg_full); mid_w=$(( mid_w + 1 ))
     seg_n=${#seg_text}
     fill_n=$(( (pct * seg_n + 50) / 100 ))
     [ "$fill_n" -lt 0 ] && fill_n=0
     [ "$fill_n" -gt "$seg_n" ] && fill_n=$seg_n
-    left_text+=$(printf '\033[48;5;%sm\033[38;5;%sm%s' "$bg_full" "$fg" "${seg_text:0:$fill_n}")
-    left_text+=$(printf '\033[48;5;%sm\033[38;5;%sm%s' "$bg_dim"  "$fg" "${seg_text:$fill_n}")
-    left_w=$(( left_w + seg_n ))
-    left_last_bg=$bg_dim
+    mid_text+=$(printf '\033[48;5;%sm\033[38;5;%sm%s' "$bg_full" "$fg" "${seg_text:0:$fill_n}")
+    mid_text+=$(printf '\033[48;5;%sm\033[38;5;%sm%s' "$bg_dim"  "$fg" "${seg_text:$fill_n}")
+    mid_w=$(( mid_w + seg_n ))
+    mid_last_bg=$bg_dim
 }
 add_quota_seg "$fh_text" "${fh_used:-0}"
 add_quota_seg "$sd_text" "${sd_used:-0}"
 
-left_text+=$(emit_end $left_last_bg); left_w=$(( left_w + 1 ))
+mid_text+=$(emit_end $mid_last_bg); mid_w=$(( mid_w + 1 ))
 
-# Right group: build in order CPU, mem, GPU, load (skip empty).
+# --- right chunk: hardware (GPU info / compute / memory) ---
 right_text=""; right_w=0
 right_segs=()
 [ -n "$gpu_info_seg"    ] && right_segs+=("$BG_GPU_INFO"    "$gpu_info_seg")
@@ -284,9 +309,16 @@ if [ ${#right_segs[@]} -gt 0 ]; then
     right_text+=$(emit_end $last_bg); right_w=$(( right_w + 1 ))
 fi
 
+# Center the middle chunk on the line; left and right pads absorb the rest.
+# When the right chunk is empty (no GPU), the middle still floats around the
+# midpoint instead of hugging the right edge.
 term_w=${COLUMNS:-100}
-pad_n=$(( term_w - left_w - right_w ))
-[ "$pad_n" -lt 1 ] && pad_n=1
-spacer=$(printf '%*s' "$pad_n" '')
+mid_start=$(( (term_w - mid_w) / 2 ))
+left_pad=$(( mid_start - left_w ))
+right_pad=$(( term_w - mid_start - mid_w - right_w ))
+[ "$left_pad"  -lt 1 ] && left_pad=1
+[ "$right_pad" -lt 1 ] && right_pad=1
+spacer_l=$(printf '%*s' "$left_pad"  '')
+spacer_r=$(printf '%*s' "$right_pad" '')
 
-printf '%s%s%s\n' "$left_text" "$spacer" "$right_text"
+printf '%s%s%s%s%s\n' "$left_text" "$spacer_l" "$mid_text" "$spacer_r" "$right_text"
