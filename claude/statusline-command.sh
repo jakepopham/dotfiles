@@ -157,8 +157,10 @@ pad_center() {  # $1=label  → echoes label centered in BAR_W cells (no-op if t
 }
 
 ctx_text=""
+ctx_used=""
 if [ -n "$remaining" ]; then
-    ctx_text=$(pad_center "ctx ${remaining}%")
+    ctx_used=$(( 100 - remaining ))
+    ctx_text=$(pad_center "ctx ${ctx_used}%")
 fi
 
 fh_text=""
@@ -190,10 +192,10 @@ BG_LOAD=238           # dark gray
 FG_LIGHT=255          # near-white
 FG_DARK=232           # near-black
 
-if [ -n "$remaining" ]; then
-    if   [ "$remaining" -ge 50 ]; then
+if [ -n "$ctx_used" ]; then
+    if   [ "$ctx_used" -lt 50 ]; then
         BG_CTX_FULL=28 ; BG_CTX_DIM=22 ; FG_CTX=$FG_LIGHT       # bright/dim green
-    elif [ "$remaining" -ge 20 ]; then
+    elif [ "$ctx_used" -lt 80 ]; then
         BG_CTX_FULL=172; BG_CTX_DIM=94 ; FG_CTX=$FG_LIGHT       # bright/dim amber
     else
         BG_CTX_FULL=160; BG_CTX_DIM=52 ; FG_CTX=$FG_LIGHT       # bright/dim red
@@ -254,10 +256,10 @@ text=" $model "
 mid_text+=$(emit_seg $BG_MODEL $FG_LIGHT "$text");          mid_w=$(( mid_w + ${#text} ))
 mid_last_bg=$BG_MODEL
 
-if [ -n "$remaining" ]; then
+if [ -n "$ctx_used" ]; then
     mid_text+=$(emit_trans $mid_last_bg $BG_CTX_FULL); mid_w=$(( mid_w + 1 ))
     seg_n=${#ctx_text}
-    fill_n=$(( (remaining * seg_n + 50) / 100 ))
+    fill_n=$(( (ctx_used * seg_n + 50) / 100 ))
     [ "$fill_n" -lt 0 ] && fill_n=0
     [ "$fill_n" -gt "$seg_n" ] && fill_n=$seg_n
     mid_text+=$(printf '\033[48;5;%sm\033[38;5;%sm%s' "$BG_CTX_FULL" "$FG_CTX" "${ctx_text:0:$fill_n}")
