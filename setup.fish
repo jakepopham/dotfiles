@@ -34,8 +34,8 @@ safe_link $DOTFILES_DIR/fish $CONFIG_DIR/fish
 safe_link $DOTFILES_DIR/jj $CONFIG_DIR/jj
 safe_link $DOTFILES_DIR/tmux $CONFIG_DIR/tmux
 
-# Function to add statusLine entry to ~/.claude/settings.json iff missing.
-# Preserves any existing statusLine and all other settings.
+# Function to set statusLine entry in ~/.claude/settings.json.
+# Always overrides — dotfiles is source of truth. Other settings preserved.
 function ensure_statusline
     set -l settings ~/.claude/settings.json
     set -l entry '{type: "command", command: "bash '$HOME'/.claude/statusline-command.sh"}'
@@ -51,7 +51,7 @@ function ensure_statusline
 
     set -l before (jq -r '.statusLine.command // "none"' $settings)
     set -l tmp (mktemp)
-    if jq ".statusLine //= $entry" $settings > $tmp
+    if jq ".statusLine = $entry" $settings > $tmp
         mv $tmp $settings
     else
         rm -f $tmp
@@ -63,7 +63,7 @@ function ensure_statusline
     if test "$before" = "$after"
         echo "✓ statusLine already configured ($after)"
     else
-        echo "✓ Added statusLine to $settings"
+        echo "✓ Updated statusLine in $settings ($before → $after)"
     end
 end
 
