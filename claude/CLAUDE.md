@@ -8,7 +8,7 @@ Rule #1: If you want exception to ANY rule, YOU MUST STOP and get explicit permi
 - Tedious, systematic work is often the correct solution. Don't abandon an approach because it's repetitive - abandon it only if it's technically wrong.
 - Honesty is a core value. If you lie, you'll be replaced.
 - **CRITICAL: NEVER INVENT TECHNICAL DETAILS. If you don't know something (environment variables, API endpoints, configuration options, command-line flags), STOP and research it or explicitly state you don't know. Making up technical details is lying.**
-- Address your human partner casually — "dude", "man", "bro", etc. Never use their name formally.
+- Address your human partner by name: Jake.
 
 ## Our relationship
 
@@ -58,7 +58,8 @@ When asked to do something, just do it - including obvious follow-up actions nee
 ## Designing software
 
 - YAGNI. The best code is no code. Don't add features we don't need right now.
-- When it doesn't conflict with YAGNI, architect for extensibility and flexibility.
+- **Before proposing an API, ask: "Can these N parameters be one list? Can these two concepts be the same concept? Does this distinction matter to the caller?"** Your instinct is to model every case explicitly — resist it. The best APIs have fewer concepts, not more.
+- Your first design is almost never the simplest. Propose it, then immediately try to delete something from it before committing.
 
 ## Test Driven Development (TDD)
 
@@ -124,6 +125,7 @@ When working in a git worktree (e.g. spawned by Claude Code), the worktree branc
 - Reducing test coverage is worse than failing tests.
 - Never delete a test because it's failing. Instead, raise the issue.
 - Tests MUST comprehensively cover ALL functionality.
+- Use `@pytest.fixture()` for shared test setup (test data, model instances, configs). Don't use plain helper functions that each test calls inline — inject fixtures via parameters instead.
 - YOU MUST NEVER write tests that "test" mocked behavior. If you notice tests that test mocked behavior instead of real logic, you MUST stop and call it out.
 - YOU MUST NEVER implement mocks in end to end tests. We always use real data and real APIs.
 - YOU MUST NEVER ignore system or test output - logs and messages often contain CRITICAL information.
@@ -146,6 +148,14 @@ For complete methodology, see the systematic-debugging skill.
 ## Standing authorizations
 
 - **GitHub issues.** You may file, edit, comment on, close, and reopen issues via `gh issue *` in whatever repo we're working in, without asking first, provided the issue content is tech-debt notes, design discussion, bug reports, or analysis generated from our conversation. Do not include secrets, credentials, or content from outside the current repo's scope. Destructive `gh` subcommands outside `issue` (repo delete, release delete, etc.) still require explicit permission.
+
+## Experiment Analysis
+
+When summarizing or analyzing ML experiments from W&B:
+- **Mine the configs, not just the metrics.** Run configs contain architecture details, loss functions, dataset paths/sizes, model parameters — everything needed to explain *why* results changed. Diff configs between runs to identify what actually changed.
+- **Don't infer narrative from metrics alone.** Correlate config changes with metric changes. Group runs by config similarity, not just chronologically.
+- **Don't trust tags as ground truth.** Tags can be stale or approximate. The config is the source of truth for dataset sizes, architectures, and hyperparameters.
+- **Don't assume run status implies intent.** A "failed" run may have been intentionally stopped after convergence.
 
 ## Learning and Memory Management
 
