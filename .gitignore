@@ -1,0 +1,3 @@
+# Fish-managed machine-local state — written by fish itself, not config.
+fish/fish_variables
+fish/conf.d/fish_frozen_*.fish
