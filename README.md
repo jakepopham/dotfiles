@@ -1,10 +1,6 @@
-# CLAUDE.md
+# dotfiles
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-## Overview
-
-This is a personal dotfiles repository that manages shell and version control configurations using symlinks.
+Personal dotfiles repository that manages shell, terminal, and editor configurations using symlinks.
 
 ## Repository Structure
 
