@@ -106,6 +106,12 @@ do
   -- NOTE: You can change these options as you wish!
   --  For more options, you can see `:help option-list`
 
+  -- Enable 24-bit color. Required for colorschemes to render correctly; without
+  -- it, gruvbox's palette gets squashed into the xterm 256-color cube and looks
+  -- washed out. The terminal stack (incl. tmux) must also pass truecolor through
+  -- — see tmux.conf's `terminal-overrides ',*:Tc'` line.
+  vim.o.termguicolors = true
+
   -- Make line numbers default
   vim.o.number = true
   -- You can also add relative line numbers, to help with jumping.
