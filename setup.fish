@@ -32,6 +32,7 @@ end
 # Create symlinks
 safe_link $DOTFILES_DIR/fish $CONFIG_DIR/fish
 safe_link $DOTFILES_DIR/tmux $CONFIG_DIR/tmux
+safe_link $DOTFILES_DIR/nvim $CONFIG_DIR/nvim
 
 # Function to set statusLine entry in ~/.claude/settings.json.
 # Always overrides — dotfiles is source of truth. Other settings preserved.

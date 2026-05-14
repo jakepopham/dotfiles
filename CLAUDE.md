@@ -14,6 +14,9 @@ This is a personal dotfiles repository that manages shell and version control co
   - `functions/` - Custom Fish functions (auto-loaded by name)
 - `tmux/` - Tmux terminal multiplexer configuration (symlinked to `~/.config/tmux/`)
   - `tmux.conf` - Tmux settings and keybindings
+- `nvim/` - Neovim configuration (symlinked to `~/.config/nvim/`)
+  - `init.lua` - Vendored from [kickstart.nvim](https://github.com/nvim-lua/kickstart.nvim); single-file config
+  - `lua/custom/plugins/` - Stub for user plugin overlays (kickstart imports this dir by convention)
 - `setup.fish` - Installation script that creates symlinks
 
 ## Setup and Installation
