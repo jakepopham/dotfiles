@@ -31,7 +31,6 @@ end
 
 # Create symlinks
 safe_link $DOTFILES_DIR/fish $CONFIG_DIR/fish
-safe_link $DOTFILES_DIR/jj $CONFIG_DIR/jj
 safe_link $DOTFILES_DIR/tmux $CONFIG_DIR/tmux
 
 # Function to set statusLine entry in ~/.claude/settings.json.

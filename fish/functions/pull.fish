@@ -1,3 +1,3 @@
 function pull
-    jj git fetch $argv
+    git pull $argv
 end

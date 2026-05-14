@@ -1,3 +1,3 @@
 function push
-    jj git push $argv
+    git push $argv
 end
