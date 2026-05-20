@@ -13,6 +13,10 @@ Personal dotfiles repository that manages shell, terminal, and editor configurat
 - `nvim/` - Neovim configuration (symlinked to `~/.config/nvim/`)
   - `init.lua` - Vendored from [kickstart.nvim](https://github.com/nvim-lua/kickstart.nvim); single-file config
   - `lua/custom/plugins/` - Stub for user plugin overlays (kickstart imports this dir by convention)
+- `claude/` - Claude Code configuration (symlinked into `~/.claude/`)
+  - `CLAUDE.md` - Global working contract
+  - `statusline-command.sh` - Status line script
+  - `agents/` - Custom subagents (clarity, harmony, precision, resilience)
 - `setup.fish` - Installation script that creates symlinks
 
 ## Setup and Installation

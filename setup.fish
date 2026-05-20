@@ -67,10 +67,11 @@ function ensure_statusline
     end
 end
 
-# Symlink individual files into existing directories
+# Symlink individual files and dirs into ~/.claude
 mkdir -p ~/.claude
 safe_link $DOTFILES_DIR/claude/CLAUDE.md ~/.claude/CLAUDE.md
 safe_link $DOTFILES_DIR/claude/statusline-command.sh ~/.claude/statusline-command.sh
+safe_link $DOTFILES_DIR/claude/agents ~/.claude/agents
 ensure_statusline
 
 echo ""
