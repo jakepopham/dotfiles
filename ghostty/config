@@ -1,0 +1,11 @@
+# Ghostty terminal configuration.
+# Symlinked to ~/.config/ghostty/ by setup.fish. Ghostty reads this XDG path
+# on both macOS and Linux; on macOS it also reads ~/Library/Application
+# Support/com.mitchellh.ghostty/config — setup.fish moves that aside so this
+# tracked file is the single source of truth.
+
+# Run fish as the shell (interactive login so conf.d/ + config.fish load).
+command = /opt/homebrew/bin/fish --login --interactive
+
+# Gruvbox Dark — matches nvim (gruvbox.nvim) and the tmux status bar palette.
+theme = Gruvbox Dark

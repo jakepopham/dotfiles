@@ -33,6 +33,16 @@ end
 safe_link $DOTFILES_DIR/fish $CONFIG_DIR/fish
 safe_link $DOTFILES_DIR/tmux $CONFIG_DIR/tmux
 safe_link $DOTFILES_DIR/nvim $CONFIG_DIR/nvim
+safe_link $DOTFILES_DIR/ghostty $CONFIG_DIR/ghostty
+
+# Ghostty on macOS also reads ~/Library/Application Support/...; a real
+# (non-symlink) config lingering there competes with the XDG-path symlink
+# above, so move it aside and let the tracked config be authoritative.
+set -l ghostty_mac "$HOME/Library/Application Support/com.mitchellh.ghostty/config"
+if test -e $ghostty_mac; and not test -L $ghostty_mac
+    mv $ghostty_mac "$ghostty_mac.backup"
+    echo "✓ Moved aside macOS Ghostty config -> $ghostty_mac.backup"
+end
 
 # Function to set statusLine entry in ~/.claude/settings.json.
 # Always overrides — dotfiles is source of truth. Other settings preserved.

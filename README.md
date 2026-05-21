@@ -10,6 +10,9 @@ Personal dotfiles repository that manages shell, terminal, and editor configurat
   - `functions/` - Custom Fish functions (auto-loaded by name)
 - `tmux/` - Tmux terminal multiplexer configuration (symlinked to `~/.config/tmux/`)
   - `tmux.conf` - Tmux settings and keybindings
+  - `system-stats.sh` - CPU/RAM probe for the status bar
+- `ghostty/` - Ghostty terminal emulator configuration (symlinked to `~/.config/ghostty/`)
+  - `config` - Ghostty settings (shell, theme)
 - `nvim/` - Neovim configuration (symlinked to `~/.config/nvim/`)
   - `init.lua` - Vendored from [kickstart.nvim](https://github.com/nvim-lua/kickstart.nvim); single-file config
   - `lua/custom/plugins/` - Stub for user plugin overlays (kickstart imports this dir by convention)
