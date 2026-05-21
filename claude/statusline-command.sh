@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
-# Vim/airline-style statusline for Claude Code.
+# Rounded-pill statusline for Claude Code, gruvbox-dark palette.
 # Three chunks separated by stretchy whitespace:
 #   left   = cwd · git
 #   middle = model · context · quotas
 #   right  = GPU info · util · memory
-# Each segment is a colored block with a powerline arrow () transitioning
-# to the next segment's background. Each chunk's outer edges fade into the
-# default bg via and . Requires a Powerline-patched terminal font
-# (Nerd Font, MesloLGS NF, etc) for the arrow glyphs to render.
+# Each segment is an independent "pill": a coloured body bracketed by U+E0B6 /
+# U+E0B4 half-circle caps drawn in the pill's colour over the terminal bg, so
+# the edges read as rounded. Matches the tmux status bar (see tmux/tmux.conf).
+# Context/quota pills double as progress bars: the body bg is the bright tier
+# colour over the filled fraction, dark (gruvbox bg1) over the rest.
+# Requires a Nerd Font for the cap glyphs and a truecolor terminal — the
+# dotfiles' terminal/tmux stack passes 24-bit colour through (see tmux.conf).
 
 input=$(cat)
 
@@ -141,10 +144,11 @@ fi
 
 
 # --- progress-fill bar text (context window + rate-limit quotas) ---
-# Each bar renders as a split segment (bright bg over the filled portion, dim
-# bg over the empty portion) — the bar's *width* is the text's cell length, so
-# we pad the label to a fixed BAR_W to give each bar a uniform, visible track.
-# Label is centered so the fill grows under it rather than chasing it across.
+# Each bar renders as a pill whose body bg is split (bright tier colour over
+# the filled portion, dark gruvbox bg1 over the rest) — the bar's *width* is
+# the text's cell length, so we pad the label to a fixed BAR_W to give each
+# bar a uniform, visible track. Label is centered so the fill grows under it
+# rather than chasing it across.
 BAR_W=18
 
 pad_center() {  # $1=label  → echoes label centered in BAR_W cells (no-op if too long)
@@ -180,136 +184,105 @@ if [ -n "$sd_used" ]; then
     fi
 fi
 
-# --- airline-style segments with powerline transitions ---
-# 256-color background indices, chosen for readable contrast on dark terms.
-BG_CWD=24             # deep blue
-BG_GIT=58             # olive: distinct from cwd/model/context palette
-BG_MODEL=53           # deep purple
-BG_GPU_INFO=237       # static info: mid-dark gray
-BG_GPU_COMPUTE=23     # dynamic util/temp/power: teal
-BG_GPU_MEM=30         # mem + procs: darker teal/cyan
-BG_LOAD=238           # dark gray
-FG_LIGHT=255          # near-white
-FG_DARK=232           # near-black
+# --- gruvbox-dark truecolor palette (R;G;B), matching tmux/tmux.conf ---
+C_BG0='40;40;40'        # #282828  terminal bg / cap backdrop, fg on bright pills
+C_BG1='60;56;54'        # #3c3836  progress-bar track (the empty portion)
+C_BG2='80;73;69'        # #504945  GPU-info pill
+C_FG='235;219;178'      # #ebdbb2  light text (on dark pills)
+C_DIM='168;153;132'     # #a89984  dim text (on the bar track)
+C_BLUE='131;165;152'    # #83a598  cwd, GPU mem
+C_GREEN='184;187;38'    # #b8bb26  git, bar fill < 50%
+C_YELLOW='215;153;33'   # #d79921  model (matches tmux session pill)
+C_BRYELLOW='250;189;47' # #fabd2f  bar fill 50-80%
+C_AQUA='142;192;124'    # #8ec07c  GPU util (matches tmux active-window pill)
+C_RED='251;73;52'       # #fb4934  bar fill >= 80%
 
-if [ -n "$ctx_used" ]; then
-    if   [ "$ctx_used" -lt 50 ]; then
-        BG_CTX_FULL=28 ; BG_CTX_DIM=22 ; FG_CTX=$FG_LIGHT       # bright/dim green
-    elif [ "$ctx_used" -lt 80 ]; then
-        BG_CTX_FULL=172; BG_CTX_DIM=94 ; FG_CTX=$FG_LIGHT       # bright/dim amber
-    else
-        BG_CTX_FULL=160; BG_CTX_DIM=52 ; FG_CTX=$FG_LIGHT       # bright/dim red
+# Cap glyphs: generated from their UTF-8 bytes so this file stays pure ASCII.
+CAP_L=$(printf '\356\202\266')  # U+E0B6 left half-circle pill cap
+CAP_R=$(printf '\356\202\264')  # U+E0B4 right half-circle pill cap
+
+# solid_pill BG FG TEXT  → echoes a rounded pill. The caps are the pill colour
+# drawn over the default terminal bg (\033[49m) so the edges read as rounded.
+solid_pill() {
+    printf '\033[49m\033[38;2;%sm%s' "$1" "$CAP_L"
+    printf '\033[48;2;%sm\033[38;2;%sm%s' "$1" "$2" "$3"
+    printf '\033[49m\033[38;2;%sm%s\033[0m' "$1" "$CAP_R"
+}
+
+# bar_pill FILL TEXT USED_PCT  → echoes a progress-bar pill: body bg is FILL
+# over the first USED_PCT% of the label, gruvbox bg1 (track) over the rest.
+# Each cap takes the colour of the body end it abuts.
+bar_pill() {
+    local fill=$1 text=$2 pct=$3
+    local n=${#text}
+    local f=$(( (pct * n + 50) / 100 ))
+    [ "$f" -lt 0 ] && f=0
+    [ "$f" -gt "$n" ] && f=$n
+    local lcap=$C_BG1 rcap=$C_BG1
+    [ "$f" -gt 0 ]  && lcap=$fill
+    [ "$f" -ge "$n" ] && rcap=$fill
+    printf '\033[49m\033[38;2;%sm%s' "$lcap" "$CAP_L"
+    printf '\033[48;2;%sm\033[38;2;%sm%s' "$fill"  "$C_BG0" "${text:0:$f}"
+    printf '\033[48;2;%sm\033[38;2;%sm%s' "$C_BG1" "$C_DIM" "${text:$f}"
+    printf '\033[49m\033[38;2;%sm%s\033[0m' "$rcap" "$CAP_R"
+}
+
+# Tier colour for a fill bar: cool when low, hot when high.
+fill_color() {  # $1=pct  → echoes the tier colour
+    if   [ "$1" -lt 50 ]; then printf '%s' "$C_GREEN"
+    elif [ "$1" -lt 80 ]; then printf '%s' "$C_BRYELLOW"
+    else                       printf '%s' "$C_RED"
     fi
-fi
-
-# Quota color tier per segment (high USED is bad).
-quota_colors() {  # $1=used_pct  →  echoes "BG_FULL BG_DIM FG"
-    pct=$1
-    if   [ "$pct" -lt 50 ]; then echo "28 22 $FG_LIGHT"
-    elif [ "$pct" -lt 80 ]; then echo "172 94 $FG_LIGHT"
-    else                         echo "160 52 $FG_LIGHT"
-    fi
-}
-
-ARROW=""   # U+E0B0 right-pointing powerline arrow
-LARROW=""  # U+E0B2 left-pointing powerline arrow
-
-emit_seg() {  # $1=bg $2=fg $3=text   (caller controls leading/trailing space)
-    printf '\033[48;5;%sm\033[38;5;%sm%s' "$1" "$2" "$3"
-}
-emit_trans() {  # $1=bg_left $2=bg_right
-    printf '\033[48;5;%sm\033[38;5;%sm%s' "$2" "$1" "$ARROW"
-}
-emit_end() {    # $1=bg_left  (right arrow that fades into default bg)
-    printf '\033[0m\033[38;5;%sm%s\033[0m' "$1" "$ARROW"
-}
-emit_lstart() { # $1=bg_right (left arrow into right-aligned segment from default bg)
-    printf '\033[0m\033[38;5;%sm%s' "$1" "$LARROW"
 }
 
 # Build the line as three chunks separated by stretchy whitespace:
-#   left   = dir/git
-#   middle = model/usage (model + context bar + quotas)
-#   right  = hardware (GPU info / compute / memory)
-# Each chunk's outer edges fade into default bg via emit_lstart / emit_end,
-# the same mechanism the right chunk has always used. Visible-cell length
-# is counted as `${#text}` (ASCII labels) plus 1 per powerline arrow.
+#   left   = cwd / git
+#   middle = model / context bar / quota bars
+#   right  = GPU info / compute / memory
+# Within a chunk, pills are joined by a single space on the default bg. Pill
+# width = body cell-length + 2 (the two caps). Visible-cell length is counted
+# as `${#text}` (ASCII labels; +1 per ↑/↓ glyph in git_text).
 
-# --- left chunk: cwd + git ---
-left_text=""
-left_w=0
-text=" $cwd "
-left_text+=$(emit_seg $BG_CWD $FG_LIGHT "$text"); left_w=$(( left_w + ${#text} ))
-left_last_bg=$BG_CWD
+# --- left chunk: cwd + git pills ---
+left_text=""; left_w=0
+body=" $cwd "
+left_text+=$(solid_pill "$C_BLUE" "$C_BG0" "$body"); left_w=$(( ${#body} + 2 ))
 if [ -n "$git_text" ]; then
-    left_text+=$(emit_trans $left_last_bg $BG_GIT);          left_w=$(( left_w + 1 ))
-    left_text+=$(emit_seg $BG_GIT $FG_LIGHT "$git_text");    left_w=$(( left_w + ${#git_text} ))
-    left_last_bg=$BG_GIT
+    left_text+=" "; left_w=$(( left_w + 1 ))
+    left_text+=$(solid_pill "$C_GREEN" "$C_BG0" "$git_text")
+    left_w=$(( left_w + ${#git_text} + 2 ))
 fi
-left_text+=$(emit_end $left_last_bg); left_w=$(( left_w + 1 ))
 
-# --- middle chunk: model + context bar + quotas ---
-mid_text=""
-mid_w=0
-mid_text+=$(emit_lstart $BG_MODEL);                         mid_w=$(( mid_w + 1 ))
-text=" $model "
-mid_text+=$(emit_seg $BG_MODEL $FG_LIGHT "$text");          mid_w=$(( mid_w + ${#text} ))
-mid_last_bg=$BG_MODEL
+# --- middle chunk: model pill + context bar + quota bars ---
+mid_text=""; mid_w=0
+body=" $model "
+mid_text+=$(solid_pill "$C_YELLOW" "$C_BG0" "$body"); mid_w=$(( ${#body} + 2 ))
 
 if [ -n "$ctx_used" ]; then
-    mid_text+=$(emit_trans $mid_last_bg $BG_CTX_FULL); mid_w=$(( mid_w + 1 ))
-    seg_n=${#ctx_text}
-    fill_n=$(( (ctx_used * seg_n + 50) / 100 ))
-    [ "$fill_n" -lt 0 ] && fill_n=0
-    [ "$fill_n" -gt "$seg_n" ] && fill_n=$seg_n
-    mid_text+=$(printf '\033[48;5;%sm\033[38;5;%sm%s' "$BG_CTX_FULL" "$FG_CTX" "${ctx_text:0:$fill_n}")
-    mid_text+=$(printf '\033[48;5;%sm\033[38;5;%sm%s' "$BG_CTX_DIM"  "$FG_CTX" "${ctx_text:$fill_n}")
-    mid_w=$(( mid_w + seg_n ))
-    mid_last_bg=$BG_CTX_DIM
+    mid_text+=" "; mid_w=$(( mid_w + 1 ))
+    mid_text+=$(bar_pill "$(fill_color "$ctx_used")" "$ctx_text" "$ctx_used")
+    mid_w=$(( mid_w + ${#ctx_text} + 2 ))
 fi
 
-add_quota_seg() {  # $1=text $2=used_pct  → appends a split-bg quota segment to mid_text
-    seg_text=$1
-    pct=$2
-    [ -z "$seg_text" ] && return
-    read -r bg_full bg_dim fg <<< "$(quota_colors "$pct")"
-    mid_text+=$(emit_trans $mid_last_bg $bg_full); mid_w=$(( mid_w + 1 ))
-    seg_n=${#seg_text}
-    fill_n=$(( (pct * seg_n + 50) / 100 ))
-    [ "$fill_n" -lt 0 ] && fill_n=0
-    [ "$fill_n" -gt "$seg_n" ] && fill_n=$seg_n
-    mid_text+=$(printf '\033[48;5;%sm\033[38;5;%sm%s' "$bg_full" "$fg" "${seg_text:0:$fill_n}")
-    mid_text+=$(printf '\033[48;5;%sm\033[38;5;%sm%s' "$bg_dim"  "$fg" "${seg_text:$fill_n}")
-    mid_w=$(( mid_w + seg_n ))
-    mid_last_bg=$bg_dim
+add_quota() {  # $1=bar text  $2=used_pct  → appends a quota bar pill to mid_text
+    [ -z "$1" ] && return
+    mid_text+=" "; mid_w=$(( mid_w + 1 ))
+    mid_text+=$(bar_pill "$(fill_color "$2")" "$1" "$2")
+    mid_w=$(( mid_w + ${#1} + 2 ))
 }
-add_quota_seg "$fh_text" "${fh_used:-0}"
-add_quota_seg "$sd_text" "${sd_used:-0}"
-
-mid_text+=$(emit_end $mid_last_bg); mid_w=$(( mid_w + 1 ))
+add_quota "$fh_text" "${fh_used:-0}"
+add_quota "$sd_text" "${sd_used:-0}"
 
 # --- right chunk: hardware (GPU info / compute / memory) ---
 right_text=""; right_w=0
-right_segs=()
-[ -n "$gpu_info_seg"    ] && right_segs+=("$BG_GPU_INFO"    "$gpu_info_seg")
-[ -n "$gpu_compute_seg" ] && right_segs+=("$BG_GPU_COMPUTE" "$gpu_compute_seg")
-[ -n "$gpu_mem_seg"     ] && right_segs+=("$BG_GPU_MEM"     "$gpu_mem_seg")
-
-if [ ${#right_segs[@]} -gt 0 ]; then
-    first_bg=${right_segs[0]}; first_text=${right_segs[1]}
-    right_text+=$(emit_lstart $first_bg);                 right_w=$(( right_w + 1 ))
-    right_text+=$(emit_seg $first_bg $FG_LIGHT "$first_text"); right_w=$(( right_w + ${#first_text} ))
-    last_bg=$first_bg
-    i=2
-    while [ $i -lt ${#right_segs[@]} ]; do
-        bg=${right_segs[$i]}; text=${right_segs[$((i+1))]}
-        right_text+=$(emit_trans $last_bg $bg);            right_w=$(( right_w + 1 ))
-        right_text+=$(emit_seg $bg $FG_LIGHT "$text");     right_w=$(( right_w + ${#text} ))
-        last_bg=$bg
-        i=$(( i + 2 ))
-    done
-    right_text+=$(emit_end $last_bg); right_w=$(( right_w + 1 ))
-fi
+add_gpu() {  # $1=bg  $2=fg  $3=text  → appends a GPU pill to right_text
+    [ "$right_w" -gt 0 ] && { right_text+=" "; right_w=$(( right_w + 1 )); }
+    right_text+=$(solid_pill "$1" "$2" "$3")
+    right_w=$(( right_w + ${#3} + 2 ))
+}
+[ -n "$gpu_info_seg"    ] && add_gpu "$C_BG2"  "$C_FG"  "$gpu_info_seg"
+[ -n "$gpu_compute_seg" ] && add_gpu "$C_AQUA" "$C_BG0" "$gpu_compute_seg"
+[ -n "$gpu_mem_seg"     ] && add_gpu "$C_BLUE" "$C_BG0" "$gpu_mem_seg"
 
 # Center the middle chunk on the line; left and right pads absorb the rest.
 # When the right chunk is empty (no GPU), the middle still floats around the
@@ -320,7 +293,6 @@ left_pad=$(( mid_start - left_w ))
 right_pad=$(( term_w - mid_start - mid_w - right_w ))
 [ "$left_pad"  -lt 1 ] && left_pad=1
 [ "$right_pad" -lt 1 ] && right_pad=1
-spacer_l=$(printf '%*s' "$left_pad"  '')
-spacer_r=$(printf '%*s' "$right_pad" '')
 
-printf '%s%s%s%s%s\n' "$left_text" "$spacer_l" "$mid_text" "$spacer_r" "$right_text"
+printf '%s%*s%s%*s%s\n' \
+    "$left_text" "$left_pad" '' "$mid_text" "$right_pad" '' "$right_text"
