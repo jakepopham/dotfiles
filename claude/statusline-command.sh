@@ -33,6 +33,7 @@ d = json.load(sys.stdin)
 ws = d.get("workspace") or {}
 cwd = ws.get("current_dir") or d.get("cwd") or ""
 model = (d.get("model") or {}).get("display_name") or ""
+effort = (d.get("effort") or {}).get("level") or ""
 ctx = (d.get("context_window") or {}).get("remaining_percentage")
 ctx_str = "" if ctx is None else f"{int(round(float(ctx)))}"
 rl = d.get("rate_limits") or {}
@@ -45,9 +46,9 @@ def emit(qd):
     used_s = "" if used is None else f"{int(round(float(used)))}"
     rst_s  = "" if rst  is None else fmt_dur(int(rst) - now)
     print(used_s); print(rst_s)
-print(cwd); print(model); print(ctx_str)
-emit(fh)  # lines 4,5: fh_used, fh_reset
-emit(sd)  # lines 6,7: sd_used, sd_reset
+print(cwd); print(model); print(ctx_str); print(effort)
+emit(fh)  # lines 5,6: fh_used, fh_reset
+emit(sd)  # lines 7,8: sd_used, sd_reset
 ' 2>/dev/null)
 cwd_abs=$(printf '%s\n' "$parsed" | sed -n '1p')
 cwd=$cwd_abs
@@ -56,10 +57,14 @@ model=$(printf '%s\n' "$parsed" | sed -n '2p')
 # width — it duplicates info the user already chose at session start.
 model=$(printf '%s' "$model" | sed -E 's/[[:space:]]*\([^)]*context\)$//')
 remaining=$(printf '%s\n' "$parsed" | sed -n '3p')
-fh_used=$(printf '%s\n' "$parsed" | sed -n '4p')
-fh_reset=$(printf '%s\n' "$parsed" | sed -n '5p')
-sd_used=$(printf '%s\n' "$parsed" | sed -n '6p')
-sd_reset=$(printf '%s\n' "$parsed" | sed -n '7p')
+effort=$(printf '%s\n' "$parsed" | sed -n '4p')
+fh_used=$(printf '%s\n' "$parsed" | sed -n '5p')
+fh_reset=$(printf '%s\n' "$parsed" | sed -n '6p')
+sd_used=$(printf '%s\n' "$parsed" | sed -n '7p')
+sd_reset=$(printf '%s\n' "$parsed" | sed -n '8p')
+# Append reasoning effort tier (low/medium/high/xhigh/max) to the model label
+# so the model pill reads e.g. "Opus 4.7 · high".
+[ -n "$effort" ] && model="$model · $effort"
 
 # Shorten cwd: replace $HOME with ~
 home=$(printf '%s' "$HOME" | sed 's|/$||')
